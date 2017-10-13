@@ -4,13 +4,15 @@ from macpath import norm_error
 import numpy as np
 import math
 
+
 class Layer_Type(Enum):
     INPUT_LAYER = 1
     HIDDEN_LAYER = 2
     OUTPUT_LAYER = 3
 
+
 class Node:
-    def __init__(self, number_of_weights, value = 0):
+    def __init__(self, number_of_weights, value=0):
         self.weights = []
         self.value = value
         for index in range(0, number_of_weights):
@@ -28,6 +30,7 @@ class Node:
     def get_weight(self, index):
         return self.weights[index]
 
+
 class Layer:
     def __init__(self, nof_nodes, nof_nodes_next_layer, layer_type):
         self.nodes = []
@@ -35,7 +38,7 @@ class Layer:
         self.nof_nodes_next_layer = nof_nodes_next_layer
         self.layer_type = layer_type
 
-        #include extra node for bias in each layer
+        # include extra node for bias in each layer
         self.nodes.append(Node(nof_nodes_next_layer, 1))
 
         for index in range(0, nof_nodes):
@@ -57,24 +60,25 @@ class Layer:
             for weight in node.weights:
                 print(weight)
 
+
 class NN:
     def __init__(self, X_train, y_train, max_iterations, *nof_nodes):
         self.nof_hiden_layers = len(nof_nodes)
         self.layers = []
 
-        #input layer
+        # input layer
         self.layers.append(Layer(np.shape(X_train)[1], nof_nodes[0], Layer_Type.INPUT_LAYER))
 
-        #hidden layers
+        # hidden layers
         for index in range(0, self.nof_hiden_layers - 1):
-            self.layers.append(Layer(nof_nodes[index], nof_nodes[index+1], Layer_Type.HIDDEN_LAYER))
+            self.layers.append(Layer(nof_nodes[index], nof_nodes[index + 1], Layer_Type.HIDDEN_LAYER))
 
         self.layers.append(Layer(nof_nodes[self.nof_hiden_layers - 1], 1, Layer_Type.HIDDEN_LAYER))
 
-        #output layer
-        #self.layers.append(Layer(1, 0, Layer_Type.OUTPUT_LAYER))
+        # output layer
+        self.layers.append(Layer(1, 0, Layer_Type.OUTPUT_LAYER))
 
-        #train NN
+        # train NN
         self.fit(X_train, y_train, max_iterations)
 
     def print(self):
@@ -92,14 +96,14 @@ class NN:
         return NN.sigmoid(output)
 
     def forward_pass(self):
-        for index in range(0, self.nof_hiden_layers):
+        for index in range(0, self.nof_hiden_layers + 1):
             current_layer = self.layers[index]
             next_layer = self.layers[index + 1]
 
-            for node_index in range (1, next_layer.nof_nodes + 1):
+            for node_index in range(1, next_layer.nof_nodes + 1):
                 next_layer.set_node_value(node_index, NN.calculate_node_value(current_layer, node_index))
 
-        return NN.calculate_node_value(self.layers[-1], 1)
+        return self.layers[-1].nodes[1].value
 
     def backward_pass(self):
         return
@@ -117,15 +121,15 @@ class NN:
                 return False
 
     def train_example(self, features, expected_output, max_iterations):
-        #print("Train example")
+        # print("Train example")
         nof_features = len(features)
-        #set input layer
-        for index_feature in range (0, nof_features):
+        # set input layer
+        for index_feature in range(0, nof_features):
             self.layers[0].nodes[index_feature + 1].set_value(features[index_feature])
 
-        for iteration in range (0, max_iterations):
+        for iteration in range(0, max_iterations):
             current_output = self.forward_pass()
-            #print (current_output)
+            # print (current_output)
 
             if NN.is_expected_value_match(expected_output, current_output):
                 break
@@ -163,16 +167,8 @@ def train_test_split(input_array, prediction_array, test_size):
 
     return train_input, test_input, train_prediction, test_prediction
 
-class Activate:
-    
-    def activationFunction(self,input):
-        return 1/(1+math.exp(-input))
 
-a = Activate()
-
-print(a.activationFunction(2))
-
-X = [[0, 0], [0, 1], [1, 0], [1, 1], [1,1]] * 2
+X = [[0, 0], [0, 1], [1, 0], [1, 1], [1, 1]] * 2
 y = [0, 1, 1, 0, 1] * 2
 X_train, X_test, y_train, y_test = train_test_split(X, y, 20)
 
