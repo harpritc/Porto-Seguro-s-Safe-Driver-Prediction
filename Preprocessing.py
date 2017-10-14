@@ -49,6 +49,14 @@ def main(argv):
 
     #df = pd.read_csv("https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data")
     df = pd.read_csv(inputDataSet)
+	
+    nof_columns = df.shape[1]
+    columns = []
+    for index in range (0, nof_columns-1):
+        columns.append('Feature{}'.format(index))
+    columns.append('Class')
+
+    df = pd.read_csv(inputDataSet, names=columns)
 
     df_remove_missing =  remove_missing(df);
     #convert string data to int
@@ -57,11 +65,8 @@ def main(argv):
     df_ClassRemoved = df_numeric.drop(df_numeric.columns[-1],axis=1)
 
     df_normalize = normalize(df_ClassRemoved,df_numeric)
-    df_normalize.to_csv(outputDataSet, sep='\t')
+    df_normalize.to_csv(outputDataSet)
     print(df_normalize)
-
-
-
 
 
 if __name__ == "__main__":
