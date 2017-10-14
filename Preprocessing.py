@@ -65,7 +65,7 @@ def main(argv):
     df_ClassRemoved = df_numeric.drop(df_numeric.columns[-1],axis=1)
 
     df_normalize = normalize(df_ClassRemoved,df_numeric)
-    df_normalize.to_csv(outputDataSet)
+    df_normalize.to_csv(outputDataSet,index = False)
     print(df_normalize)
 
 
