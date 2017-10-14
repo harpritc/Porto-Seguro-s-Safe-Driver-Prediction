@@ -11,9 +11,10 @@ class Layer_Type(Enum):
     OUTPUT_LAYER = 3
 
 class Node:
-    def __init__(self, number_of_weights, value = 0):
+    def __init__(self, number_of_weights, value=0,delta=0):
         self.weights = []
         self.value = value
+        self.delta = delta
         for index in range(0, number_of_weights):
             self.weights.append(random.random())
 
@@ -23,11 +24,18 @@ class Node:
     def get_value(self):
         return self.value
 
+    def set_delta(self, delta):
+        self.delta = delta
+
+    def get_delta(self):
+        return self.delta
+
     def set_weight(self, index, weight):
         self.weights[index] = weight
 
     def get_weight(self, index):
         return self.weights[index]
+
 
 class Layer:
     def __init__(self, nof_nodes, nof_nodes_next_layer, layer_type):
@@ -36,7 +44,7 @@ class Layer:
         self.nof_nodes_next_layer = nof_nodes_next_layer
         self.layer_type = layer_type
 
-        #include extra node for bias in each layer
+        # include extra node for bias in each layer
         self.nodes.append(Node(nof_nodes_next_layer, 1))
 
         for index in range(0, nof_nodes):
@@ -50,6 +58,19 @@ class Layer:
 
     def set_node_value(self, index, value):
         self.nodes[index].set_value(value)
+
+    def set_node_delta(self, index, delta):
+        self.nodes[index].set_delta(delta)
+
+    def print(self):
+        print("Number of nodes: %d" % (self.nof_nodes))
+        for node in self.nodes:
+            print("node value: %f" % (node.value))
+            print("delta value: %f" % (node.delta))
+            for weight in node.weights:
+                print(weight)
+
+
 
     def print(self):
         for index in range (1, self.nof_nodes + 1):
@@ -86,6 +107,19 @@ class NN:
     def sigmoid(x):
         return 1 / (1 + math.exp(-x))
 
+     def calculate_delta_value(next_layer, node):
+        output = 0;
+        for index in range(1,next_layer.nof_nodes+1):
+            output += next_layer.nodes[index].get_delta() * node.get_weight(index - 1)
+        delta = (node.value) * (1-node.value) * output
+        return delta
+
+    def weightUpdate_value(next_layer, node):
+        for index in range(1,next_layer.nof_nodes+1):
+            newWeight = node.get_weight(index - 1) + ( next_layer.nodes[index].get_delta() * node.value )
+            node.set_weight(index - 1, newWeight)
+            print("New Weight %f" % (newWeight))
+	
     def calculate_node_value(current_layer, next_layer_node_index):
         output = 0;
         for node in current_layer.nodes:
@@ -102,6 +136,18 @@ class NN:
                 next_layer.set_node_value(node_index, NN.calculate_node_value(current_layer, node_index))
 
         return self.layers[-1].nodes[1].value
+
+    def backward_pass(self,current_output,expected_output):
+        self.layers[-1].set_node_delta(1,current_output*(1-current_output)*(expected_output-current_output));
+
+        for index in range(self.nof_hiden_layers,-1,-1):
+            current_layer = self.layers[index]
+            next_layer = self.layers[index + 1]
+
+            for node_index in range(1, current_layer.nof_nodes + 1):
+                current_layer.set_node_delta(node_index, NN.calculate_delta_value(next_layer, current_layer.nodes[node_index]))
+            for node_index in range(1, current_layer.nof_nodes + 1):
+                NN.weightUpdate_value(next_layer, current_layer.nodes[node_index])
 
     def backward_pass(self):
         return
@@ -132,7 +178,8 @@ class NN:
             if NN.is_expected_value_match(expected_output, current_output):
                 break
             else:
-                self.backward_pass()
+		self.backward_pass(current_output,expected_output)
+
         return
 
     def fit(self, X_train, y_train, max_iterations):
