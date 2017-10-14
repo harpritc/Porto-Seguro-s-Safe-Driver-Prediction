@@ -150,8 +150,6 @@ class NN:
             for node_index in range(1, current_layer.nof_nodes + 1):
                 NN.weightUpdate_value(next_layer, current_layer.nodes[node_index])
 
-    def backward_pass(self):
-        return
 
     def is_expected_value_match(expected_output, current_output):
         if expected_output == 1:
