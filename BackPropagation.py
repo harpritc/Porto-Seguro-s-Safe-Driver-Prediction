@@ -4,6 +4,7 @@ from macpath import norm_error
 import numpy as np
 import math
 import sys
+import pandas as pd
 
 class Layer_Type(Enum):
     INPUT_LAYER = 1
@@ -241,6 +242,11 @@ def main(argv):
 
     for index in range (0, nof_hiden_layer):
         nof_nodes_in_hidden_layer.append(int(argv[4+index]))
+	
+    df = pd.read_csv(data_set)
+    y = df['Class']
+    del df['Class']
+    X = df.as_matrix()
 
     #split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, training_percent)
