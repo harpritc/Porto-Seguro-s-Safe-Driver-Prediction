@@ -1,0 +1,15 @@
+import pandas as pd
+df = pd.read_csv("G:\\Sem3\\ml\\Kaggle\\train\\train.csv")
+
+df.drop('target',axis=1)
+df.drop('id',axis=1)
+# normalize data
+df_norm = (df - df.mean()) / df.std()
+
+from sklearn import decomposition
+pca = decomposition.PCA(n_components=2)
+pca.fit(df_norm)
+X = pca.transform(df_norm)
+
+print(pd.DataFrame(pca.components_,columns=df_norm.columns,index = ['PC-1','PC-2']))
+#list(X)
