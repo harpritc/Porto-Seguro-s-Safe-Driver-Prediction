@@ -1,6 +1,4 @@
-# This Python 3 environment comes with many helpful analytics libraries installed
-# It is defined by the kaggle/python docker image: https://github.com/kaggle/docker-python
-# For example, here's several helpful packages to load in 
+#Porto Seguro’s Safe Driver Prediction
 
 import numpy as np # linear algebra
 import pandas as pd # data processing, CSV file I/O (e.g. pd.read_csv)
@@ -15,6 +13,15 @@ import pandas as pd
 import numpy as np
 from  sklearn.metrics import accuracy_score
 from sklearn.utils import resample
+from sklearn.preprocessing import StandardScaler
+from sklearn.base import TransformerMixin
+import matplotlib.pyplot as plt
+import scikitplot as skplt
+from sklearn import metrics
+from sklearn.model_selection import train_test_split
+from xgboost import XGBClassifier
+from sklearn.model_selection import StratifiedKFold
+from sklearn import decomposition
 
 def gini(actual, pred, cmpcol = 0, sortcol = 1):
      assert( len(actual) == len(pred) )
@@ -30,10 +37,6 @@ def gini_normalized(a, p):
      return gini(a, p) / gini(a, a)
  
 def eval_gini(y_true, y_prob):
-    """
-    Original author CPMP : https://www.kaggle.com/cpmpml
-    In kernel : https://www.kaggle.com/cpmpml/extremely-fast-gini-computation
-    """
     y_true = np.asarray(y_true)
     y_true = y_true[np.argsort(y_prob)]
     ntrue = 0
@@ -53,67 +56,105 @@ def gini_xgb(preds, dtrain):
     gini_score = eval_gini(labels, preds)
     return [('gini', gini_score)]
 
-print("hii5")
+def upsampling(df):
+    df_majority=df[df.target==0]
+    df_minority=df[df.target==1]
+    # Upsample minority class
+    df_minority_upsampled = resample(df_minority, 
+                                     replace=True,     # sample with replacement
+                                     n_samples=473518,    # to match majority class
+                                     random_state=123) # reproducible results
+
+    # Combine majority class with upsampled minority class  n_samples=573518
+    df_upsampled = pd.concat([df_majority, df_minority_upsampled])
+    return df_upsampled
+
+class DataFrameImputer(TransformerMixin):
+    def fit(self, X, y=None):
+        self.fill = pd.Series([X[c].value_counts().index[0]
+            if X[c].dtype == np.dtype('O') else X[c].median() for c in X],
+            index=X.columns)
+        return self
+    def transform(self, X, y=None):
+        return X.fillna(self.fill)
+    
+print("Reading Input")
 df = pd.read_csv("../input/train.csv")
 df_test = pd.read_csv("../input/test.csv")
-print("hii4")
 
-df_majority=df[df.target==0]
-df_minority=df[df.target==1]
-# Upsample minority class
-df_minority_upsampled = resample(df_minority, 
-                                 replace=True,     # sample with replacement
-                                 n_samples=573518,    # to match majority class
-                                 random_state=123) # reproducible results
- 
-# Combine majority class with upsampled minority class
-df_upsampled = pd.concat([df_majority, df_minority_upsampled])
-y= df_upsampled['target']
-df_upsampled.drop('target',axis=1)
-df_upsampled.drop('id',axis=1)
+target = df['target']
+df.drop('target',axis=1)
+
+big_X = df.append(df_test)
+big_X_imputed = DataFrameImputer().fit_transform(big_X)
+
+
+df = big_X_imputed[0:df.shape[0]]
+df_test = big_X_imputed[df.shape[0]::]
+df['target'] = target
+y = []
 
 ids = df_test['id'].as_matrix()
 df_test.drop('id',axis=1)
 
-# normalize data
-from sklearn.preprocessing import Imputer
-my_imputer = Imputer()
-X_test_new = my_imputer.fit_transform(df_test)
+#upsampling
+df_upsampled = upsampling(df)
+y= df_upsampled['target'].as_matrix().astype(float)
+df_upsampled.drop('target',axis=1)
+df_upsampled.drop('id',axis=1)
+X = df_upsampled.as_matrix()
+X_test_new = df_test.as_matrix()
 
-df_norm = (df_upsampled - df_upsampled.mean()) / df_upsampled.std()
-
-
-#X_test_new = (X_test_new - df_test.mean())/df_test.std()
-
-from sklearn.preprocessing import StandardScaler
+#scaling
 scaler = StandardScaler()
-# Fit only to the training data
 scaler.fit(X_test_new)
-# Now apply the transformations to the data:
-#X_train = scaler.transform(X_train)
 X_test_new = scaler.transform(X_test_new)
+scaler.fit(X)
+X = scaler.transform(X)
 
-from sklearn import decomposition
+#PCA analysis
 pca = decomposition.PCA(n_components=4)
-#pca.fit(df_norm)
-
-X = pca.fit_transform(df_norm)
-
-#df_test_norm = df_test_norm.dropna()
-
+X = pca.fit_transform(X)
 X_test_1 = pca.fit_transform(X_test_new)
 
-from sklearn.model_selection import train_test_split
+#split
 X_train, X_test, y_train, y_test = train_test_split(X, y,test_size=0.10)
 
-print("hii")
-from xgboost import XGBClassifier
-print("hii7")
-n_estimators = 200
+
+print("Kfold")
+folds = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=15)
+
+'''
+param = {
+ 'n_estimators':[100,150,200,250],
+ 'max_depth':[2,3,4,5,6,7,8,9],
+ 'min_child_weight':[2,3,4,5],
+ 'colsample_bytree':[0.2,0.6,0.8],
+ 'colsample_bylevel':[0.2,0.6,0.8],
+ 'learning_rate':[0.02,0.04,0.2]
+}
+from sklearn.grid_search import GridSearchCV
+gsearch1 = GridSearchCV(estimator = XGBClassifier( 
+        objective= "binary:logistic", 
+        seed=1), 
+        param_grid = param, 
+        scoring='neg_log_loss',
+        cv=4,
+        verbose = 1)
+    
+gsearch1.fit(X_train, y_train)
+print(gsearch1.bestscore)
+print(gsearch1.bestparams)
+'''
+print("Model Building")
+
+n_estimators = 300
+n_splits = 4
+
 clf = XGBClassifier(n_estimators=n_estimators,
-                        max_depth=4,
+                        max_depth=5,
                         objective="binary:logistic",
-                        learning_rate=.1, 
+                        learning_rate=.02, 
                         subsample=.8, 
                         colsample_bytree=.8,
                         gamma=1,
@@ -121,44 +162,46 @@ clf = XGBClassifier(n_estimators=n_estimators,
                         reg_lambda=1,
                         nthread=2)
 
+#kfold
+for train_index, test_index in folds.split(X,y):
+    
+    X_train, X_test = X[train_index], X[test_index]
+    y_train, y_test = y[train_index], y[test_index]
 
 
+    print("Model fitting")
+    # Fit the best algorithm to the data. 
+    clf.fit(X_train, y_train)
+    
+    predictions = clf.predict(X_test)
+    predictions_prob = clf.predict_proba(X_test)
+    print(accuracy_score(y_test, predictions))
+    predictions_prob_test = clf.predict_proba(X_test_1)
+    
+    #precision recall curve
+    skplt.metrics.plot_precision_recall_curve(y_test, predictions_prob)
+    plt.show()
+    
+    #roc curve
+    preds_roc = predictions_prob[:,1]
+    fpr, tpr, threshold = metrics.roc_curve(y_test, preds_roc)
+    roc_auc = metrics.auc(fpr, tpr)
+    plt.title('Receiver Operating Characteristic')
+    plt.plot(fpr, tpr, 'b', label = 'AUC = %0.2f' % roc_auc)
+    plt.legend(loc = 'lower right')
+    plt.plot([0, 1], [0, 1],'r--')
+    plt.xlim([0, 1])
+    plt.ylim([0, 1])
+    plt.ylabel('True Positive Rate')
+    plt.xlabel('False Positive Rate')
+    plt.show()
 
-print("hii3")
-# Fit the best algorithm to the data. 
-clf.fit(X_train, y_train)
-print("hii5")
-
-#predictions = clf.predict(X_test)
-predictions_prob = clf.predict_proba(X_test)
-
-predictions_prob_test = clf.predict_proba(X_test_1)
 
 df2 = pd.DataFrame({'id' : ids})
 df2['target'] = predictions_prob_test[:,1]
-df2.to_csv("submission.csv",index= False)
-print(df2)
-#print(predictions_prob)
-#print(predictions_prob[:,1])
-'''
-new_pred = []
-counter = 0
+df2.to_csv("submission_5_xgbKold_1.csv",index= False)
+#print(df2)
 
-for pred in predictions_prob:
-    new_pred[counter] = pred[1]
-    counter += 1
-    
-print (new_pred)
 
-'''
 print("Full OOF score : %.6f" % gini_normalized(y_test,predictions_prob[:,1]))
 
-#print(accuracy_score(y_test, predictions))
-
-
-
-#print(accuracy_score(y_test, predictions))
-
-#print(pd.DataFrame(pca.components_,columns=df_norm.columns,index = ['PC-1','PC-2']))
-#list(X)
-# Any results you write to the current directory are saved as output.
